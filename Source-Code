@@ -1,0 +1,234 @@
+import pandas as pd
+import numpy as np
+
+schools_df = pd.read_excel(r"C:\Users\OMEN\Desktop\before.xlsx", sheet_name='Schools')
+schools_df.columns = schools_df.columns.str.strip().str.replace(' ', '_')
+
+if 'Foundation_Date' in schools_df.columns:
+    schools_df["Foundation_Date"] = pd.to_datetime(schools_df["Foundation_Date"], format="%d-%b-%y", errors="coerce")
+
+numeric_columns = ["NumberofAssistants", "NumberofInstructors"]
+for col in numeric_columns:
+    if col in schools_df.columns:
+        schools_df[col] = pd.to_numeric(schools_df[col], errors="coerce").fillna(0).astype(int)
+
+def format_phone(phone):
+    phone = str(phone).strip()
+    if not phone.startswith("0"):
+        return "0" + phone
+    return phone
+
+if 'Phone' in schools_df.columns:
+    schools_df["Phone"] = schools_df["Phone"].apply(format_phone)
+
+
+students_df = pd.read_excel(r"C:\Users\OMEN\Desktop\before.xlsx", sheet_name='Students')
+students_df.columns = students_df.columns.str.strip().str.replace(' ', '_')
+
+students_df.rename(columns={
+    'Student_ID': 'StudentID',
+    'School_ID': 'SchoolID',
+    'Full_Name': 'FullName',
+    'Address': 'City',
+    'Enrollment_ID': 'EnrollmentCode',
+    'Track': 'Level'
+}, inplace=True)
+
+students_df.drop(columns=['Gender'], inplace=True, errors='ignore')
+students_df[['Governorate', 'Type', 'SpecialNeeds', 'Grade', 'Age']] = None
+
+students_df = students_df[['SchoolID', 'StudentID', 'FullName', 'City', 'Governorate',
+                           'Age', 'Email', 'Phone', 'EnrollmentCode', 'Level', 'Grade',
+                           'Status', 'Type', 'SpecialNeeds']]
+
+students_df['Phone'] = students_df['Phone'].astype('Int64').astype(str)
+students_df['City'] = students_df['City'].astype(str)
+students_df['Age'] = pd.to_numeric(students_df['Age'], errors='coerce')
+students_df['Type'] = students_df['Type'].astype(str)
+students_df['SpecialNeeds'] = students_df['SpecialNeeds'].astype(str)
+
+cols_to_proper = ['FullName', 'City', 'Governorate', 'Grade', 'Status', 'Type', 'SpecialNeeds']
+for col in cols_to_proper:
+    students_df[col] = students_df[col].astype(str).str.title()
+
+students_df['Grade'] = np.where(students_df['Level'] == '1st Secondary', 'Grade 10',
+                        np.where(students_df['Level'] == '2nd Secondary', 'Grade 11',
+                        np.where(students_df['EnrollmentCode'].isin(['LT', 'SB', 'SM']), 'Grade 12',
+                                 'Not Specified')))
+students_df['Age'] = np.where(students_df['Grade'] == 'Grade 10', 16,
+                     np.where(students_df['Grade'] == 'Grade 11', 17, 18))
+
+gov_map = dict(zip(schools_df['SchoolID'], schools_df.get('Governorate', pd.Series())))
+students_df['Governorate'] = students_df['SchoolID'].map(gov_map)
+
+
+staff_df = pd.read_excel(r"C:\Users\OMEN\Desktop\before.xlsx", sheet_name='Staff')
+staff_df.columns = staff_df.columns.str.strip().str.replace(' ', '_')
+
+staff_df.rename(columns={
+    'School_ID': 'SchoolID',
+    'Employee_Type': 'Employment_Type',
+    'Phone_Number': 'Email'
+}, inplace=True)
+
+if 'Employee_Name' in staff_df.columns:
+    staff_df[['FirstName', 'LastName']] = staff_df['Employee_Name'].str.split(pat=' ', n=1, expand=True)
+    staff_df.drop(columns=['Employee_Name'], inplace=True)
+
+staff_df['Email'] = staff_df['FirstName'].str.lower() + staff_df['LastName'].str.lower() + '@gmail.com'
+
+staff_df['Hire_Date'] = pd.to_datetime(staff_df.get('Hire_Date'), errors='coerce', dayfirst=True)
+staff_df['Date_Of_Birth'] = pd.to_datetime(staff_df.get('Date_Of_Birth'), errors='coerce', dayfirst=True)
+
+cols_to_format = ['FirstName', 'LastName', 'Role', 'Employment_Type']
+for col in cols_to_format:
+    if col in staff_df.columns:
+        staff_df[col] = staff_df[col].str.strip().str.title()
+
+staff_df[cols_to_format] = staff_df[cols_to_format].fillna('Not Specified')
+if 'Salary' in staff_df.columns:
+    staff_df['Salary'] = staff_df['Salary'].fillna(staff_df['Salary'].mean())
+
+
+teacher_student_df = pd.read_excel(r"C:\Users\OMEN\Desktop\before.xlsx", sheet_name='TeacherStudent')
+teacher_student_df.columns = teacher_student_df.columns.str.strip().str.replace(' ', '_')
+
+teacher_student_df.rename(columns={
+    'Student_ID': 'StudentID',
+    'School_ID': 'SchoolID',
+    'Enrollment_ID': 'EnrollmentCode',
+    'Teacher_ID': 'TeacherID',
+    'Assistant_ID': 'AssistantID'
+}, inplace=True)
+
+teacher_student_df['AssistantID'] = teacher_student_df['AssistantID'].fillna('Not Specified')
+
+
+performance_df = pd.read_excel(r"C:\Users\OMEN\Desktop\before.xlsx", sheet_name='StaffPerformance')
+performance_df.columns = performance_df.columns.str.strip().str.replace(' ', '_')
+
+performance_df.rename(columns={'School_ID': 'SchoolID', 'Name': 'FirstName', 'Employee_ID': 'EmployeeID'}, inplace=True)
+
+performance_df['SchoolID'] = performance_df['SchoolID'].fillna('Not Specified')
+performance_df['FirstName'] = performance_df['FirstName'].fillna('Not Specified')
+
+for col in ['Attendance_Days', 'Overtime_Hours']:
+    if col in performance_df.columns:
+        performance_df[col] = performance_df[col].fillna(performance_df[col].mean()).round(0).astype(int)
+
+performance_df['Behavior_Score'] = performance_df['Behavior_Score'] * 20
+performance_df['Task_Completion_Rate'] = ((performance_df['Tasks_Completed'] / performance_df['Tasks_Assigned']) * 100).round(1)
+performance_df['Attendance_Rate'] = ((performance_df['Attendance_Days'] / 22) * 100).round(1)
+
+work_hours_component = np.minimum(((performance_df['Avg_Work_Hours'] + performance_df['Overtime_Hours']) / 8) * 100, 100)
+
+performance_df['Performance_Score'] = (
+    0.5 * performance_df['Task_Completion_Rate'] +
+    0.3 * performance_df['Attendance_Rate'] +
+    0.1 * performance_df['Behavior_Score'] +
+    0.1 * work_hours_component
+).round(2)
+
+def assign_rank(score):
+    if score > 95:
+        return 'A'
+    elif score > 80:
+        return 'B'
+    elif score > 70:
+        return 'C'
+    elif score > 60:
+        return 'D'
+    else:
+        return 'F'
+
+performance_df['Rank'] = performance_df['Performance_Score'].apply(assign_rank)
+performance_df['Promotion_Eligibility'] = performance_df['Rank'].apply(lambda x: 'Yes' if x == 'A' else 'No')
+
+
+student_perf_df = pd.read_excel(r"C:\Users\OMEN\Desktop\before.xlsx", sheet_name='StudentPerformance')
+student_perf_df.dropna(how='all', inplace=True)
+student_perf_df = student_perf_df.loc[:, ~student_perf_df.columns.str.contains('^Unnamed')]
+student_perf_df.columns = student_perf_df.columns.str.strip().str.replace(' ', '_').str.title()
+
+numeric_cols = ['Midterm_Score', 'Final_Score', 'Assignments_Avg', 'Quizzes_Avg', 'Projects_Score']
+for col in numeric_cols:
+    if col in student_perf_df.columns:
+        student_perf_df[col] = pd.to_numeric(student_perf_df[col], errors='coerce')
+
+student_perf_df.fillna({
+    'Student_Name': 'Unknown',
+    'Midterm_Score': 0,
+    'Final_Score': 0,
+    'Assignments_Avg': 0,
+    'Quizzes_Avg': 0,
+    'Projects_Score': 0
+}, inplace=True)
+
+student_perf_df['Total_Score'] = (
+    student_perf_df.get('Final_Score', 0)*0.4 +
+    student_perf_df.get('Midterm_Score', 0)*0.2 +
+    student_perf_df.get('Assignments_Avg', 0)*0.1 +
+    student_perf_df.get('Quizzes_Avg', 0)*0.1 +
+    student_perf_df.get('Projects_Score', 0)*0.1
+)
+
+def grade(score):
+    if pd.isna(score):
+        return ""
+    elif score >= 90:
+        return "A"
+    elif score >= 80:
+        return "B"
+    elif score >= 70:
+        return "C"
+    elif score >= 60:
+        return "D"
+    else:
+        return "F"
+
+student_perf_df['Grade'] = student_perf_df['Total_Score'].apply(grade)
+
+import pandas as pd
+
+# البيانات اللي عايز تضيفها
+enrollment_data = [
+    ['SC1','Ar','1st Secondary','Grade 10'],
+    ['SC1','E','1st Secondary','Grade 10'],
+    ['SC1','M1','1st Secondary','Grade 10'],
+    ['SC1','IS','1st Secondary','Grade 10'],
+    ['SC1','His','1st Secondary','Grade 10'],
+    ['SC2','Ar','2nd Secondary','Grade 11'],
+    ['SC2','E','2nd Secondary','Grade 11'],
+    ['SC2','M2','2nd Secondary','Grade 11'],
+    ['SC2','Phy','2nd Secondary','Grade 11'],
+    ['SC2','Chem','2nd Secondary','Grade 11'],
+    ['SB','Ar','Science-Biology Track','Grade 12'],
+    ['SB','E','Science-Biology Track','Grade 12'],
+    ['SB','Bio','Science-Biology Track','Grade 12'],
+    ['SB','Phy','Science-Biology Track','Grade 12'],
+    ['SB','Chem','Science-Biology Track','Grade 12'],
+    ['SM','Ar','Science-Math Track','Grade 12'],
+    ['SM','E','Science-Math Track','Grade 12'],
+    ['SM','M3','Science-Math Track','Grade 12'],
+    ['SM','Phy','Science-Math Track','Grade 12'],
+    ['SM','Chem','Science-Math Track','Grade 12'],
+    ['LT','Ar','Literary track','Grade 12'],
+    ['LT','E','Literary track','Grade 12'],
+    ['LT','His','Literary track','Grade 12'],
+    ['LT','Geo','Literary track','Grade 12'],
+    ['LT','Stat','Literary track','Grade 12'],
+]
+
+enrollment_df = pd.DataFrame(enrollment_data, columns=['EnrollmentCode','Subject','Level','Grade'])
+
+
+with pd.ExcelWriter(r"C:\Users\OMEN\Desktop\Cleaned.xlsx") as writer:
+    schools_df.to_excel(writer, sheet_name='Schools', index=False)
+    students_df.to_excel(writer, sheet_name='Students', index=False)
+    enrollment_df.to_excel(writer, sheet_name='Enrollment', index=False)
+    staff_df.to_excel(writer, sheet_name='Staff', index=False)
+    teacher_student_df.to_excel(writer, sheet_name='TeacherStudent', index=False)
+    performance_df.to_excel(writer, sheet_name='StaffPerformance', index=False)
+    student_perf_df.to_excel(writer, sheet_name='StudentPerformance', index=False)
+
+print(" All sheets cleaned and saved successfully in 'Cleaned.xlsx'")
