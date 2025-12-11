@@ -1,0 +1,23 @@
+governorate analysis dashboard
+student distribution chart (filter)
+school type distribution (filter)
+
+school analysis dashboard 
+staff gender distribution chart (filter)
+
+staff analysis dashboard 
+staff & gender distribution charts (filters)
+
+instructor performance dashboard 
+instructor performance per school chart (filter)
+
+assistant performance dashboard 
+assistant performance per school chart (filter)
+
+student analysis dashboard 
+level distribution chart (filter)
+grade 12 class distribution chart (filter)
+gender distribution chart (filter)
+
+student performance dashboard 
+distribution of performance by school chart (filter)
